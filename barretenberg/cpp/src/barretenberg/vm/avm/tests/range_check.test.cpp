@@ -62,7 +62,7 @@ TEST(AvmRangeCheck, shouldRangeCheck)
         trace[i].lookup_rng_chk_6_counts = range_check_builder.u16_range_chk_counters[6][uint16_t(i)];
         trace[i].lookup_rng_chk_7_counts = range_check_builder.u16_range_chk_counters[7][uint16_t(i)];
         trace[i].lookup_rng_chk_diff_counts = range_check_builder.dyn_diff_counts[uint16_t(i)];
-        trace[i].lookup_rng_chk_pow_2_counts = range_check_builder.powers_of_2_counts[uint16_t(i)];
+        trace[i].lookup_rng_chk_pow_2_counts = range_check_builder.powers_of_2_counts[uint8_t(i)];
     }
     std::cerr << "Done generating trace..." << std::endl;
 
