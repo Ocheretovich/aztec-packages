@@ -15,6 +15,7 @@
 #include "barretenberg/srs/global_crs.hpp"
 
 #include <cstddef>
+#include <filesystem>
 #include <memory>
 #include <string_view>
 

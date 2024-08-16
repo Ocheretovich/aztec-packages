@@ -1,4 +1,5 @@
 include "main.pil";
+include "./gadgets/range_check.pil";
 
 namespace mem(256);
     // ========= Table MEM-TR =================
@@ -65,7 +66,6 @@ namespace mem(256);
 
     // Helper columns
     pol commit one_min_inv; // Extra value to prove r_in_tag != tag with error handling
-    // pol DIFF: 
     pol commit diff; // 40-bit difference between two consecutive timestamps or two consecutive addresses
 
     // Type constraints
@@ -160,8 +160,6 @@ namespace mem(256);
     // and tsp' > tsp whenever glob_addr' == glob_addr
     // Therefore, we ensure proper grouping of each global address and each memory access pertaining to a given
     // global address is sorted according the arrow of time.
-    // #[DIFF_RNG_CHK_DEC]
-    // sel_rng_chk * (DIFF - diff_hi * 2**32 - diff_mid * 2**16 - diff_lo) = 0;
 
     // lastAccess == 0 && rw' == 0 ==> val == val'
     // This condition does not apply on the last row.
@@ -261,3 +259,10 @@ namespace mem(256);
     // trace. Then, #[PERM_MAIN_MEM_C] copies w_in_tag for store operation from Ic.
     #[MOV_SAME_TAG]
     (sel_mov_ia_to_ic + sel_mov_ib_to_ic) * tag_err = 0; // Equivalent to (sel_mov_ia_to_ic + sel_mov_ib_to_ic) * (r_in_tag - tag) = 0
+
+    // ========= Initialize Range Check Gadget ===============================
+    // We range check that the difference between two timestamps are 32-bit numbers
+    #[PERM_RNG_MEM]
+    range_check.mem_rng_chk {range_check.clk, range_check.value}
+    is
+    sel_rng_chk {tsp, diff};

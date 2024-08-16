@@ -4,15 +4,9 @@
 #include "barretenberg/vm/avm/trace/common.hpp"
 #include <cstdint>
 
-enum class EventEmitter {
-    ALU,
-    MEMORY,
-    GAS_L2,
-    GAS_DA,
-};
+enum class EventEmitter { ALU, MEMORY, GAS_L2, GAS_DA, CMP_LO, CMP_HI };
 
 namespace bb::avm_trace {
-// template <class TraceUtilisingRange>
 class AvmRangeCheckBuilder {
   public:
     struct RangeCheckEvent {
@@ -41,6 +35,11 @@ class AvmRangeCheckBuilder {
         bool is_alu_sel;
         bool is_gas_l2_sel;
         bool is_gas_da_sel;
+        bool is_cmp_lo;
+        bool is_cmp_hi;
+
+        // Need this for sorting
+        bool operator<(RangeCheckEntry const& other) const { return clk < other.clk; }
     };
 
     std::array<std::unordered_map<uint16_t, uint32_t>, 8> u16_range_chk_counters;
@@ -57,6 +56,33 @@ class AvmRangeCheckBuilder {
         }
         range_check_events.push_back({ clk, value, num_bits, e });
         return true;
+    }
+
+    void combine_range_builders(AvmRangeCheckBuilder const& other)
+    {
+        // Update events
+        range_check_events.insert(
+            range_check_events.end(), other.range_check_events.begin(), other.range_check_events.end());
+        // Sort just in case (i dont think we need to)
+        std::sort(range_check_events.begin(), range_check_events.end(), [](auto const& a, auto const& b) {
+            return a.clk < b.clk;
+        });
+        // Update counters
+        // U16 counters
+        for (size_t i = 0; i < 8; i++) {
+            const auto& row = other.u16_range_chk_counters[i];
+            for (auto const& [key, value] : row) {
+                u16_range_chk_counters[i][key] += value;
+            }
+        }
+        // Powers of 2 counter
+        for (auto const& [key, value] : other.powers_of_2_counts) {
+            powers_of_2_counts[key] += value;
+        }
+        // Dyn diff counter
+        for (auto const& [key, value] : other.dyn_diff_counts) {
+            dyn_diff_counts[key] += value;
+        }
     }
 
     // Turns range check events into real entries
@@ -109,6 +135,12 @@ class AvmRangeCheckBuilder {
             case EventEmitter::GAS_DA:
                 entry.is_gas_da_sel = true;
                 break;
+            case EventEmitter::CMP_LO:
+                entry.is_cmp_lo = true;
+                break;
+            case EventEmitter::CMP_HI:
+                entry.is_cmp_hi = true;
+                break;
             }
             entries.push_back(entry);
         }
@@ -152,9 +184,12 @@ class AvmRangeCheckBuilder {
         row.range_check_u16_r6 = entry.fixed_slice_registers[6];
         row.range_check_u16_r7 = entry.dynamic_slice_register;
 
+        row.range_check_alu_rng_chk = entry.is_alu_sel;
         row.range_check_mem_rng_chk = entry.is_mem_sel;
         row.range_check_gas_l2_rng_chk = entry.is_gas_l2_sel;
         row.range_check_gas_da_rng_chk = entry.is_gas_da_sel;
+        row.range_check_cmp_lo_bits_rng_chk = entry.is_cmp_lo;
+        row.range_check_cmp_hi_bits_rng_chk = entry.is_cmp_hi;
     }
 
   private:

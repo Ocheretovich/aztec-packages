@@ -23,6 +23,7 @@
 #include "barretenberg/vm/avm/trace/fixed_bytes.hpp"
 #include "barretenberg/vm/avm/trace/fixed_gas.hpp"
 #include "barretenberg/vm/avm/trace/fixed_powers.hpp"
+#include "barretenberg/vm/avm/trace/gadgets/cmp.hpp"
 #include "barretenberg/vm/avm/trace/gadgets/slice_trace.hpp"
 #include "barretenberg/vm/avm/trace/helper.hpp"
 #include "barretenberg/vm/avm/trace/opcode.hpp"
@@ -59,10 +60,6 @@ uint32_t finalize_rng_chks_for_testing(std::vector<Row>& main_trace,
                         rng_chk_trace_builder.u16_range_chk_counters.begin(),
                         rng_chk_trace_builder.u16_range_chk_counters.end());
 
-    for (size_t i = 0; i < 15; i++) {
-        u16_rng_chks.emplace_back(alu_trace_builder.u16_range_chk_counters[i]);
-    }
-
     auto custom_clk = std::set<uint32_t>{};
     for (auto const& row : u8_rng_chks) {
         for (auto const& [key, value] : row) {
@@ -70,20 +67,8 @@ uint32_t finalize_rng_chks_for_testing(std::vector<Row>& main_trace,
         }
     }
 
-    for (auto const& row : alu_trace_builder.u16_range_chk_counters) {
-        for (auto const& [key, value] : row) {
-            custom_clk.insert(key);
-        }
-    }
-
     for (auto row : u16_rng_chks) {
         for (auto const& [key, value] : row.get()) {
-            custom_clk.insert(key);
-        }
-    }
-
-    for (auto const& row : alu_trace_builder.div_u64_range_chk_counters) {
-        for (auto const& [key, value] : row) {
             custom_clk.insert(key);
         }
     }
@@ -3593,6 +3578,27 @@ std::vector<Row> AvmTraceBuilder::finalize(bool range_check_required)
     /**********************************************************************************************
      * ALU TRACE INCLUSION
      **********************************************************************************************/
+    // Finalize cmp gadget of the ALU trace
+    auto cmp_trace = alu_trace_builder.cmp_builder.finalize();
+    auto cmp_trace_size = cmp_trace.size() * 5;
+    if (main_trace_size < cmp_trace_size) {
+        main_trace_size = cmp_trace_size;
+        main_trace.resize(cmp_trace_size, {});
+    }
+    for (size_t i = 0; i < cmp_trace.size(); i++) {
+        std::array<Row, 5> row_chunks_arr = {
+            main_trace.at(5 * i),     main_trace.at(5 * i + 1), main_trace.at(5 * i + 2),
+            main_trace.at(5 * i + 3), main_trace.at(5 * i + 4),
+        };
+
+        alu_trace_builder.cmp_builder.merge_into(row_chunks_arr, cmp_trace.at(i));
+        // UGHHH I DONT KNOW ENOUGH CPP TO DO THIS NICELY
+        main_trace.at(5 * i) = row_chunks_arr[0];
+        main_trace.at(5 * i + 1) = row_chunks_arr[1];
+        main_trace.at(5 * i + 2) = row_chunks_arr[2];
+        main_trace.at(5 * i + 3) = row_chunks_arr[3];
+        main_trace.at(5 * i + 4) = row_chunks_arr[4];
+    }
 
     alu_trace_builder.finalize(main_trace);
 
@@ -3707,6 +3713,9 @@ std::vector<Row> AvmTraceBuilder::finalize(bool range_check_required)
     /**********************************************************************************************
      * RANGE CHECKS AND SELECTORS INCLUSION
      **********************************************************************************************/
+    // HOOBOY THIS IS A DOOZY, we gotta extract the range check builder from the cmp which is in the alu
+    auto cmp_range_check_entries = alu_trace_builder.cmp_builder.range_check_builder;
+    range_check_builder.combine_range_builders(cmp_range_check_entries);
     // Add the range check counts to the main trace
     auto range_entries = range_check_builder.finalize();
 
@@ -3740,8 +3749,6 @@ std::vector<Row> AvmTraceBuilder::finalize(bool range_check_required)
 
         if (counter <= UINT8_MAX) {
             auto counter_u8 = static_cast<uint8_t>(counter);
-            r.lookup_u8_0_counts = alu_trace_builder.u8_range_chk_counters[0][counter_u8];
-            r.lookup_u8_1_counts = alu_trace_builder.u8_range_chk_counters[1][counter_u8];
             r.lookup_pow_2_0_counts = alu_trace_builder.u8_pow_2_counters[0][counter_u8];
             r.lookup_pow_2_1_counts = alu_trace_builder.u8_pow_2_counters[1][counter_u8];
             r.main_sel_rng_8 = FF(1);
@@ -3753,24 +3760,6 @@ std::vector<Row> AvmTraceBuilder::finalize(bool range_check_required)
 
         if (counter <= UINT16_MAX) {
             // We add to the clk here in case our trace is smaller than our range checks
-            // There might be a cleaner way to do this in the future as this only applies
-            // when our trace (excluding range checks) is < 2**16
-            r.lookup_u16_0_counts = alu_trace_builder.u16_range_chk_counters[0][static_cast<uint16_t>(counter)];
-            r.lookup_u16_1_counts = alu_trace_builder.u16_range_chk_counters[1][static_cast<uint16_t>(counter)];
-            r.lookup_u16_2_counts = alu_trace_builder.u16_range_chk_counters[2][static_cast<uint16_t>(counter)];
-            r.lookup_u16_3_counts = alu_trace_builder.u16_range_chk_counters[3][static_cast<uint16_t>(counter)];
-            r.lookup_u16_4_counts = alu_trace_builder.u16_range_chk_counters[4][static_cast<uint16_t>(counter)];
-            r.lookup_u16_5_counts = alu_trace_builder.u16_range_chk_counters[5][static_cast<uint16_t>(counter)];
-            r.lookup_u16_6_counts = alu_trace_builder.u16_range_chk_counters[6][static_cast<uint16_t>(counter)];
-            r.lookup_u16_7_counts = alu_trace_builder.u16_range_chk_counters[7][static_cast<uint16_t>(counter)];
-            r.lookup_u16_8_counts = alu_trace_builder.u16_range_chk_counters[8][static_cast<uint16_t>(counter)];
-            r.lookup_u16_9_counts = alu_trace_builder.u16_range_chk_counters[9][static_cast<uint16_t>(counter)];
-            r.lookup_u16_10_counts = alu_trace_builder.u16_range_chk_counters[10][static_cast<uint16_t>(counter)];
-            r.lookup_u16_11_counts = alu_trace_builder.u16_range_chk_counters[11][static_cast<uint16_t>(counter)];
-            r.lookup_u16_12_counts = alu_trace_builder.u16_range_chk_counters[12][static_cast<uint16_t>(counter)];
-            r.lookup_u16_13_counts = alu_trace_builder.u16_range_chk_counters[13][static_cast<uint16_t>(counter)];
-            r.lookup_u16_14_counts = alu_trace_builder.u16_range_chk_counters[14][static_cast<uint16_t>(counter)];
-
             // These are here for now until remove fully clean out the other lookups
             r.lookup_rng_chk_0_counts = range_check_builder.u16_range_chk_counters[0][uint16_t(counter)];
             r.lookup_rng_chk_1_counts = range_check_builder.u16_range_chk_counters[1][uint16_t(counter)];
@@ -3781,15 +3770,6 @@ std::vector<Row> AvmTraceBuilder::finalize(bool range_check_required)
             r.lookup_rng_chk_6_counts = range_check_builder.u16_range_chk_counters[6][uint16_t(counter)];
             r.lookup_rng_chk_7_counts = range_check_builder.u16_range_chk_counters[7][uint16_t(counter)];
             r.lookup_rng_chk_diff_counts = range_check_builder.dyn_diff_counts[uint16_t(counter)];
-
-            r.lookup_div_u16_0_counts = alu_trace_builder.div_u64_range_chk_counters[0][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_1_counts = alu_trace_builder.div_u64_range_chk_counters[1][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_2_counts = alu_trace_builder.div_u64_range_chk_counters[2][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_3_counts = alu_trace_builder.div_u64_range_chk_counters[3][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_4_counts = alu_trace_builder.div_u64_range_chk_counters[4][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_5_counts = alu_trace_builder.div_u64_range_chk_counters[5][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_6_counts = alu_trace_builder.div_u64_range_chk_counters[6][static_cast<uint16_t>(counter)];
-            r.lookup_div_u16_7_counts = alu_trace_builder.div_u64_range_chk_counters[7][static_cast<uint16_t>(counter)];
             r.main_sel_rng_16 = FF(1);
         }
     }
