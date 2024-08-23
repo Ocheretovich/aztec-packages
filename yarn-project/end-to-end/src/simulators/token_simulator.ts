@@ -97,7 +97,7 @@ export class TokenSimulator {
     return this.balancesPrivate.get(address.toString()) || 0n;
   }
 
-  async checkPublic() {
+  async checkPublic(skipTxValidation: boolean = false) {
     // public calls
     const calls = [this.token.methods.total_supply().request()];
     for (const address of this.accounts) {
@@ -105,7 +105,13 @@ export class TokenSimulator {
     }
 
     const results = (
-      await Promise.all(chunk(calls, 4).map(batch => new BatchCall(this.defaultWallet, batch).simulate()))
+      await Promise.all(
+        chunk(calls, 4).map(batch =>
+          new BatchCall(this.defaultWallet, batch).simulate({
+            skipTxValidation,
+          }),
+        ),
+      )
     ).flat();
     expect(results[0]).toEqual(this.totalSupply);
 
@@ -115,7 +121,7 @@ export class TokenSimulator {
     }
   }
 
-  async checkPrivate() {
+  async checkPrivate(skipTxValidation: boolean = false) {
     // Private calls
     const defaultLookups = [];
     const nonDefaultLookups = [];
@@ -133,7 +139,13 @@ export class TokenSimulator {
       defaultCalls.push(this.token.methods.balance_of_private(address).request());
     }
     const results = (
-      await Promise.all(chunk(defaultCalls, 4).map(batch => new BatchCall(this.defaultWallet, batch).simulate()))
+      await Promise.all(
+        chunk(defaultCalls, 4).map(batch =>
+          new BatchCall(this.defaultWallet, batch).simulate({
+            skipTxValidation,
+          }),
+        ),
+      )
     ).flat();
     for (let i = 0; i < defaultLookups.length; i++) {
       expect(results[i]).toEqual(this.balanceOfPrivate(defaultLookups[i]));
@@ -145,13 +157,15 @@ export class TokenSimulator {
       const wallet = this.lookupProvider.get(address.toString());
       const asset = wallet ? this.token.withWallet(wallet) : this.token;
 
-      const actualPrivateBalance = await asset.methods.balance_of_private({ address }).simulate();
+      const actualPrivateBalance = await asset.methods.balance_of_private({ address }).simulate({
+        skipTxValidation,
+      });
       expect(actualPrivateBalance).toEqual(this.balanceOfPrivate(address));
     }
   }
 
-  public async check() {
-    await this.checkPublic();
-    await this.checkPrivate();
+  public async check(skipTxValidation: boolean = false) {
+    await this.checkPublic(skipTxValidation);
+    await this.checkPrivate(skipTxValidation);
   }
 }

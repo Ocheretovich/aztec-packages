@@ -524,7 +524,7 @@ export class PXEService implements PXE {
     txRequest: TxExecutionRequest,
     simulatePublic: boolean,
     msgSender: AztecAddress | undefined = undefined,
-    skipTxValidation: boolean = true, // TODO(#7956): make the default be false
+    skipTxValidation: boolean = false,
     scopes?: AztecAddress[],
   ): Promise<SimulatedTx> {
     return await this.jobQueue.put(async () => {

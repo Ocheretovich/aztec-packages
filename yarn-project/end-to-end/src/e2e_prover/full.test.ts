@@ -27,7 +27,8 @@ describe('full_prover', () => {
   });
 
   afterEach(async () => {
-    await t.tokenSim.check();
+    // Tx validation is skipped here because checking the simulation fails the proof validation
+    await t.tokenSim.check(true);
   });
 
   it(
@@ -41,7 +42,9 @@ describe('full_prover', () => {
       expect(privateSendAmount).toBeGreaterThan(0n);
       const privateInteraction = provenAssets[0].methods.transfer(accounts[1].address, privateSendAmount);
 
-      const publicBalance = await provenAssets[1].methods.balance_of_public(accounts[0].address).simulate();
+      const publicBalance = await provenAssets[1].methods.balance_of_public(accounts[0].address).simulate({
+        skipTxValidation: true,
+      });
       const publicSendAmount = publicBalance / 2n;
       expect(publicSendAmount).toBeGreaterThan(0n);
       const publicInteraction = provenAssets[1].methods.transfer_public(
