@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.50.2](https://github.com/AztecProtocol/aztec-packages/compare/barretenberg-v0.50.1...barretenberg-v0.50.2) (2024-08-26)
+
+
+### Features
+
+* Added indirect const instruction ([#8065](https://github.com/AztecProtocol/aztec-packages/issues/8065)) ([0263b4c](https://github.com/AztecProtocol/aztec-packages/commit/0263b4c8961a751961b0b9ec98b441e598d1ca4e))
+* Optimize to_radix ([#8073](https://github.com/AztecProtocol/aztec-packages/issues/8073)) ([8baeffd](https://github.com/AztecProtocol/aztec-packages/commit/8baeffd1239a20ca3cbc4071f7d7da974eff709d))
+
+
+### Miscellaneous
+
+* Oink takes directly populates an instance ([#8170](https://github.com/AztecProtocol/aztec-packages/issues/8170)) ([6e46b45](https://github.com/AztecProtocol/aztec-packages/commit/6e46b459e67c090a4ffe496880e47c05855f9df4))
+
 ## [0.50.1](https://github.com/AztecProtocol/aztec-packages/compare/barretenberg-v0.50.0...barretenberg-v0.50.1) (2024-08-23)
 
 
